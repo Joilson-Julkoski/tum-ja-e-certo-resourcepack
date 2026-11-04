@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and validate pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure ffmpeg and zip
+        run: command -v ffmpeg >/dev/null || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+      - run: command -v zip >/dev/null || sudo apt-get install -y zip
+
+      - name: Validate JSON
+        run: |
+          python3 -m json.tool pack/pack.mcmeta > /dev/null
+          python3 -m json.tool pack/assets/minecraft/sounds.json > /dev/null
+          echo "JSON OK"
+
+      - name: Check every sound entry has a file
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+
+          root = pathlib.Path("pack/assets/minecraft")
+          data = json.loads((root / "sounds.json").read_text())
+
+          missing, total = [], 0
+          for event, body in data.items():
+              for entry in body.get("sounds", []):
+                  name = entry["name"] if isinstance(entry, dict) else entry
+                  if ":" in name:          # namespaced, not our asset
+                      continue
+                  total += 1
+                  path = root / "sounds" / f"{name}.ogg"
+                  if not path.is_file():
+                      missing.append(f"{event} -> {path}")
+
+          if missing:
+              print("missing sound files:", *missing, sep="\n  ")
+              sys.exit(1)
+
+          print(f"all {total} sound entries resolve")
+          PY
+
+      - name: Build pack
+        run: ./build.sh
+
+      - name: Verify audio format (mono, 44.1 kHz, Vorbis)
+        run: |
+          for f in pack/assets/minecraft/sounds/custom/*.ogg; do
+            info=$(ffprobe -v error -select_streams a:0 \
+              -show_entries stream=codec_name,channels,sample_rate \
+              -of default=noprint_wrappers=1 "$f")
+            echo "$f"
+            echo "$info" | sed 's/^/  /'
+            echo "$info" | grep -qx 'codec_name=vorbis'
+            echo "$info" | grep -qx 'channels=1'
+            echo "$info" | grep -qx 'sample_rate=44100'
+          done
+
+      - name: Verify archive layout
+        run: |
+          unzip -Z1 dist/tum-ja-e-certo.zip
+          unzip -Z1 dist/tum-ja-e-certo.zip | grep -qx 'pack.mcmeta'
+          unzip -Z1 dist/tum-ja-e-certo.zip | grep -q '^assets/minecraft/sounds.json$'
+          unzip -Z1 dist/tum-ja-e-certo.zip | grep -q '^assets/minecraft/sounds/custom/tum_1.ogg$'
+          unzip -Z1 dist/tum-ja-e-certo.zip | grep -q '^assets/minecraft/sounds/custom/tum_ja_e_certo.ogg$'
+
+      - name: Upload pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: tum-ja-e-certo
+          path: dist/tum-ja-e-certo.zip
+          if-no-files-found: error
