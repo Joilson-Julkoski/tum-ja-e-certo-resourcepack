@@ -1,0 +1,17 @@
+{
+  "block.stone.hit": {
+    "replace": true,
+    "subtitle": "subtitles.block.generic.hit",
+    "sounds": [
+      { "name": "custom/tum_1", "volume": 1.0, "pitch": 1.0 },
+      { "name": "custom/tum_2", "volume": 1.0, "pitch": 1.0 }
+    ]
+  },
+  "block.stone.break": {
+    "replace": true,
+    "subtitle": "subtitles.block.generic.break",
+    "sounds": [
+      { "name": "custom/tum_ja_e_certo", "volume": 1.0, "pitch": 1.0 }
+    ]
+  }
+}
