@@ -22,15 +22,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure ffmpeg and zip
+      - name: Ensure ffmpeg
         run: command -v ffmpeg >/dev/null || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
-      - run: command -v zip >/dev/null || sudo apt-get install -y zip
+
+      - name: Ensure zip
+        run: command -v zip >/dev/null || sudo apt-get install -y zip
 
       - name: Validate JSON
         run: |
           python3 -m json.tool pack/pack.mcmeta > /dev/null
           python3 -m json.tool pack/assets/minecraft/sounds.json > /dev/null
           echo "JSON OK"
+
+      - name: Build pack
+        run: ./build.sh
 
       - name: Check every sound entry has a file
         run: |
@@ -57,9 +62,6 @@ jobs:
 
           print(f"all {total} sound entries resolve")
           PY
-
-      - name: Build pack
-        run: ./build.sh
 
       - name: Verify audio format (mono, 44.1 kHz, Vorbis)
         run: |
